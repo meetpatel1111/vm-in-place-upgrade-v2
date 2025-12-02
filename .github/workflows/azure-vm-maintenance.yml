@@ -1,0 +1,172 @@
+# .github/workflows/azure-vm-maintenance.yml
+name: Azure VM Snapshot / Upgrade-Media / Attach / Cleanup / Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Choose action: snapshot | create-upgrade-media | attach-upgrade-media | cleanup | rollback'
+        required: true
+        default: 'snapshot'
+
+      # Common
+      resource_group:
+        description: 'Azure resource group name for VM / disks'
+        required: true
+
+      # For snapshot / attach / rollback
+      vm_name:
+        description: 'Name of the VM (for snapshot, attach, rollback)'
+        required: false
+
+      # Snapshot-specific inputs
+      include_data_disks:
+        description: 'For snapshot: include data disks? true or false'
+        required: false
+        default: 'true'
+      snapshot_prefix:
+        description: 'Prefix for snapshot names (optional)'
+        required: false
+        default: ''
+      snapshot_sku:
+        description: 'Snapshot SKU (Standard_LRS or Premium_LRS)'
+        required: false
+        default: 'Standard_LRS'
+      tags:
+        description: 'Tags to apply (snapshot / media disk) e.g. "env=prod owner=me"'
+        required: false
+        default: ''
+
+      # Create-upgrade-media inputs
+      location:
+        description: 'Azure region for upgrade-media disk (e.g. eastus, westus2, etc.)'
+        required: false
+      disk_name:
+        description: 'Name for the upgrade media managed disk'
+        required: false
+      sku:
+        description: 'Upgrade media SKU (e.g. server2025Upgrade, server2022Upgrade etc.)'
+        required: false
+      disk_sku:
+        description: 'Managed disk SKU for new upgrade media disk (Standard_LRS / Premium_LRS etc.)'
+        required: false
+        default: 'Standard_LRS'
+      zone:
+        description: 'Availability zone (optional) for upgrade media disk'
+        required: false
+
+      # Attach-upgrade-media inputs
+      lun:
+        description: 'LUN for attached upgrade-media disk (optional)'
+        required: false
+      caching:
+        description: 'Disk caching mode (None / ReadOnly / ReadWrite) when attaching upgrade-media disk'
+        required: false
+        default: 'None'
+
+      # Cleanup inputs
+      snapshots:
+        description: 'Comma-separated snapshot names to delete (for cleanup action)'
+        required: false
+      clean_disk_name:
+        description: 'Managed disk name to delete (e.g. upgrade-media disk)'
+        required: false
+      subscription_id:
+        description: 'Azure subscription ID override (optional)'
+        required: false
+
+      # Rollback inputs (restore from snapshots)
+      os_snapshot:
+        description: 'Snapshot name of OS disk to restore from (for rollback)'
+        required: false
+      data_snapshots:
+        description: 'Comma-separated snapshot names of data disks to restore (optional)'
+        required: false
+      new_os_disk_name:
+        description: 'Name for recreated OS disk (optional)'
+        required: false
+      new_data_disk_prefix:
+        description: 'Prefix for recreated data disks (optional)'
+        required: false
+
+jobs:
+  vm-maintenance:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./scripts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Azure CLI
+        uses: azure/CLI@v1
+
+      - name: Azure login (service principal)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_CLIENT_ID }}  # ensure this references the correct secret
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Make scripts executable
+        run: |
+          chmod +x azure-vm-snapshot.sh \
+                   azure-vm-create-upgrade-media.sh \
+                   azure-vm-attach-disk.sh \
+                   post-upgrade-cleanup.sh \
+                   azure-vm-rollback.sh
+
+      - name: Run selected action
+        run: |
+          case "${{ github.event.inputs.action }}" in
+            snapshot)
+              ./azure-vm-snapshot.sh \
+                --vm-name "${{ github.event.inputs.vm_name }}" \
+                --resource-group "${{ github.event.inputs.resource_group }}" \
+                --include-data-disks "${{ github.event.inputs.include_data_disks }}" \
+                --snapshot-prefix "${{ github.event.inputs.snapshot_prefix }}" \
+                --snapshot-sku "${{ github.event.inputs.snapshot_sku }}" \
+                --tags "${{ github.event.inputs.tags }}"
+              ;;
+            create-upgrade-media)
+              ./azure-vm-create-upgrade-media.sh \
+                --resource-group "${{ github.event.inputs.resource_group }}" \
+                --location "${{ github.event.inputs.location }}" \
+                --disk-name "${{ github.event.inputs.disk_name }}" \
+                --sku "${{ github.event.inputs.sku }}" \
+                --disk-sku "${{ github.event.inputs.disk_sku }}" \
+                --zone "${{ github.event.inputs.zone }}" \
+                --tags "${{ github.event.inputs.tags }}"
+              ;;
+            attach-upgrade-media)
+              ./azure-vm-attach-disk.sh \
+                --vm-name "${{ github.event.inputs.vm_name }}" \
+                --resource-group "${{ github.event.inputs.resource_group }}" \
+                --disk-name "${{ github.event.inputs.disk_name }}" \
+                --lun "${{ github.event.inputs.lun }}" \
+                --caching "${{ github.event.inputs.caching }}"
+              ;;
+            cleanup)
+              ./post-upgrade-cleanup.sh \
+                --resource-group "${{ github.event.inputs.resource_group }}" \
+                --snapshots "${{ github.event.inputs.snapshots }}" \
+                --disk-name "${{ github.event.inputs.clean_disk_name }}" \
+                --subscription "${{ github.event.inputs.subscription_id }}"
+              ;;
+            rollback)
+              ./azure-vm-rollback.sh \
+                --resource-group "${{ github.event.inputs.resource_group }}" \
+                --vm-name "${{ github.event.inputs.vm_name }}" \
+                --os-snapshot "${{ github.event.inputs.os_snapshot }}" \
+                --data-snapshots "${{ github.event.inputs.data_snapshots }}" \
+                --new-os-disk-name "${{ github.event.inputs.new_os_disk_name }}" \
+                --new-data-disk-prefix "${{ github.event.inputs.new_data_disk_prefix }}" \
+                --subscription "${{ github.event.inputs.subscription_id }}"
+              ;;
+            *)
+              echo "Unknown action: ${{ github.event.inputs.action }}" ; exit 1 ;;
+          esac
