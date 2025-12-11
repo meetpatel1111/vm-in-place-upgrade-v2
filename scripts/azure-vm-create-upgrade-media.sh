@@ -50,7 +50,7 @@ OFFER="WindowsServerUpgrade"
 SKU="$SERVER_SKU"
 
 echo "Looking for latest marketplace image for $PUBLISHER / $OFFER / $SKU in $LOCATION..."
-VERSION=$(az vm image list --publisher "$PUBLISHER" --offer "$OFFER" --sku "$SKU" --location "$LOCATION" --query "[-1].version" -o tsv)
+VERSION=$(az vm image list --all --publisher "$PUBLISHER" --offer "$OFFER" --sku "$SKU" --location "$LOCATION" --query "[-1].version" -o tsv)
 if [[ -z "$VERSION" ]]; then
   echo "Could not find marketplace image for SKU $SKU in $LOCATION"; exit 2
 fi
