@@ -101,9 +101,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Azure CLI
-        uses: azure/CLI@v1
-
       - name: Azure login (service principal)
         uses: azure/login@v2
         with:
