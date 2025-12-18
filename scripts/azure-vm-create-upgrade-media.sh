@@ -118,7 +118,7 @@ DISK_ARGS=(
   --name "$DISK_NAME"
   --location "$LOCATION"
   --sku "$DISK_SKU"
-  --source "$IMAGE_ID"
+  --image-reference "$IMAGE_ID"
 )
 
 if [[ -n "$ZONE" ]]; then
