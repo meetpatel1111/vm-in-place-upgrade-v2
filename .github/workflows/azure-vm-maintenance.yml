@@ -107,6 +107,11 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Setup Azure PowerShell
+        uses: azure/powershell@v2
+        with:
+          azPSVersion: "latest"
+
       # Export ARM_* credentials for Terraform + backend
       - name: Export ARM Credentials
         run: |
@@ -137,14 +142,13 @@ jobs:
                 --tags "${{ github.event.inputs.tags }}"
               ;;
             create-upgrade-media)
-              ./azure-vm-create-upgrade-media.sh \
-                --resource-group "${{ github.event.inputs.resource_group }}" \
-                --location "${{ github.event.inputs.location }}" \
-                --disk-name "${{ github.event.inputs.disk_name }}" \
-                --sku "${{ github.event.inputs.sku }}" \
-                --disk-sku "${{ github.event.inputs.disk_sku }}" \
-                --zone "${{ github.event.inputs.zone }}" \
-                --tags "${{ github.event.inputs.tags }}"
+              pwsh ./azure-vm-create-upgrade-media.ps1 \
+                -ResourceGroup "${{ github.event.inputs.resource_group }}" \
+                -Location "${{ github.event.inputs.location }}" \
+                -DiskName "${{ github.event.inputs.disk_name }}" \
+                -Sku "${{ github.event.inputs.sku }}" \
+                -ManagedDiskSku "${{ github.event.inputs.disk_sku }}" \
+                -Zone "${{ github.event.inputs.zone }}"
               ;;
             attach-upgrade-media)
               ./azure-vm-attach-disk.sh \
