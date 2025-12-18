@@ -134,7 +134,7 @@ jobs:
         with:
           azPSVersion: "latest"
           inlineScript: |
-            ./azure-vm-create-upgrade-media.ps1 `
+            ./scripts/azure-vm-create-upgrade-media.ps1 `
               -ResourceGroup "${{ github.event.inputs.resource_group }}" `
               -Location "${{ github.event.inputs.location }}" `
               -DiskName "${{ github.event.inputs.disk_name }}" `
